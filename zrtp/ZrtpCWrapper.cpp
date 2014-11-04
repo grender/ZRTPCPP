@@ -596,7 +596,7 @@ int32_t zrtp_isSasSignature(ZrtpContext* zrtpContext)
 {
     ZrtpConfigure* configure = getConfig(zrtpContext);
     if (configure)
-         configure->isSasSignature() ? 1 : 0;
+         return configure->isSasSignature() ? 1 : 0;
 
     //TODO: @wernerd Is this an appropriate return value in case of error?
     return 0;
