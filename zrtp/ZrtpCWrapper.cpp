@@ -27,6 +27,30 @@
 
 static int32_t zrtp_initZidFile(const char* zidFilename);
 
+static ZRtp* getEngine(ZrtpContext* zrtpContext) {
+    if (zrtpContext) {
+        return (ZRtp*) zrtpContext->zrtpEngine;
+    } else {
+        return NULL;
+    }
+}
+
+static ZrtpCallback* getCallback(ZrtpContext* zrtpContext) {
+    if (zrtpContext) {
+        return (ZrtpCallback*) zrtpContext->zrtpCallback;
+    } else {
+        return NULL;
+    }
+}
+
+static ZrtpConfigure* getConfig(ZrtpContext* zrtpContext) {
+    if (zrtpContext) {
+        return (ZrtpConfigure*) zrtpContext->configure;
+    } else {
+        return NULL;
+    }
+}
+
 ZrtpContext* zrtp_CreateWrapper() 
 {
     ZrtpContext* zc = new ZrtpContext;
@@ -43,22 +67,24 @@ void zrtp_initializeZrtpEngine(ZrtpContext* zrtpContext,
                                void* userData,
                                int32_t mitmMode)
 {
+    ZrtpConfigure* configure = NULL;
+    ZrtpCallback* callback = NULL;
     std::string clientIdString(id);
 
-    zrtpContext->zrtpCallback = new ZrtpCallbackWrapper(cb, zrtpContext);
+    zrtpContext->zrtpCallback = callback = new ZrtpCallbackWrapper(cb, zrtpContext);
     zrtpContext->userData = userData;
 
     if (zrtpContext->configure == 0) {
-        zrtpContext->configure = new ZrtpConfigure();
-        zrtpContext->configure->setStandardConfig();
+        zrtpContext->configure = configure = new ZrtpConfigure();
+        configure->setStandardConfig();
     }
 
     // Initialize ZID file (cache) and get my own ZID
     zrtp_initZidFile(zidFilename);
     const unsigned char* myZid = getZidCacheInstance()->getZid();
 
-    zrtpContext->zrtpEngine = new ZRtp((uint8_t*)myZid, zrtpContext->zrtpCallback,
-                              clientIdString, zrtpContext->configure, mitmMode == 0 ? false : true);
+    zrtpContext->zrtpEngine = new ZRtp((uint8_t*)myZid, callback,
+                              clientIdString, configure, mitmMode == 0 ? false : true);
 }
 
 void zrtp_DestroyWrapper(ZrtpContext* zrtpContext) {
@@ -66,14 +92,24 @@ void zrtp_DestroyWrapper(ZrtpContext* zrtpContext) {
     if (zrtpContext == NULL)
         return;
 
-    delete zrtpContext->zrtpEngine;
-    zrtpContext->zrtpEngine = NULL;
+    ZRtp* engine = getEngine(zrtpContext);
+    ZrtpCallback* callback = getCallback(zrtpContext);
+    ZrtpConfigure* configure = getConfig(zrtpContext);
 
-    delete zrtpContext->zrtpCallback;
-    zrtpContext->zrtpCallback = NULL;
+    if (engine) {
+        delete engine;
+        zrtpContext->zrtpEngine = NULL;
+    }
 
-    delete zrtpContext->configure;
-    zrtpContext->configure = NULL;
+    if (callback) {
+        delete callback;
+        zrtpContext->zrtpCallback = NULL;
+    }
+
+    if (configure) {
+        delete configure;
+        zrtpContext->configure = NULL;
+    }
 
     delete zrtpContext;
 }
@@ -115,23 +151,27 @@ uint32_t zrtp_EndCksum(uint32_t crc)
  * to enable ZRTP, set flags etc.
  */
 void zrtp_startZrtpEngine(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->startZrtpEngine();
+    ZRtp* engine = getEngine(zrtpContext);
+    if ( engine )
+        engine->startZrtpEngine();
 }
 
 void zrtp_stopZrtpEngine(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->stopZrtp();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->stopZrtp();
 }
 
 void zrtp_processZrtpMessage(ZrtpContext* zrtpContext, uint8_t *extHeader, uint32_t peerSSRC, size_t length) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->processZrtpMessage(extHeader, peerSSRC, length);
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->processZrtpMessage(extHeader, peerSSRC, length);
 }
 
 void zrtp_processTimeout(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->processTimeout();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->processTimeout();
 }
 
 //int32_t zrtp_handleGoClear(ZrtpContext* zrtpContext, uint8_t *extHeader)
@@ -143,31 +183,36 @@ void zrtp_processTimeout(ZrtpContext* zrtpContext) {
 //}
 
 void zrtp_setAuxSecret(ZrtpContext* zrtpContext, uint8_t* data, int32_t length) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->setAuxSecret(data, length);
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->setAuxSecret(data, length);
 }
 
 int32_t zrtp_inState(ZrtpContext* zrtpContext, int32_t state) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->inState(state) ? 1 : 0;
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->inState(state) ? 1 : 0;
 
     return 0;
 }
 
 void zrtp_SASVerified(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->SASVerified();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->SASVerified();
 }
 
 void zrtp_resetSASVerified(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->resetSASVerified();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->resetSASVerified();
 }
 
 char* zrtp_getHelloHash(ZrtpContext* zrtpContext, int32_t index) {
     std::string ret;
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        ret = zrtpContext->zrtpEngine->getHelloHash(index);
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        ret = engine->getHelloHash(index);
     else
         return NULL;
 
@@ -181,8 +226,9 @@ char* zrtp_getHelloHash(ZrtpContext* zrtpContext, int32_t index) {
 
 char* zrtp_getPeerHelloHash(ZrtpContext* zrtpContext) {
     std::string ret;
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        ret = zrtpContext->zrtpEngine->getPeerHelloHash();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        ret = engine->getPeerHelloHash();
     else
         return NULL;
 
@@ -196,10 +242,11 @@ char* zrtp_getPeerHelloHash(ZrtpContext* zrtpContext) {
 
 char* zrtp_getMultiStrParams(ZrtpContext* zrtpContext, int32_t *length) {
     std::string ret;
+    ZRtp* engine = getEngine(zrtpContext);
 
     *length = 0;
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        ret = zrtpContext->zrtpEngine->getMultiStrParams();
+    if (engine)
+        ret = engine->getMultiStrParams();
     else
         return NULL;
 
@@ -213,7 +260,8 @@ char* zrtp_getMultiStrParams(ZrtpContext* zrtpContext, int32_t *length) {
 }
 
 void zrtp_setMultiStrParams(ZrtpContext* zrtpContext, char* parameters, int32_t length) {
-    if (!zrtpContext || !zrtpContext->zrtpEngine)
+    ZRtp* engine = getEngine(zrtpContext);
+    if (!engine)
         return;
 
     if (parameters == NULL)
@@ -222,59 +270,67 @@ void zrtp_setMultiStrParams(ZrtpContext* zrtpContext, char* parameters, int32_t 
     std::string str("");
     str.assign(parameters, length); // set chars (bytes) to the string
 
-    zrtpContext->zrtpEngine->setMultiStrParams(str);
+    engine->setMultiStrParams(str);
 }
 
 int32_t zrtp_isMultiStream(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->isMultiStream() ? 1 : 0;
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->isMultiStream() ? 1 : 0;
 
     return 0;
 }
 
 int32_t zrtp_isMultiStreamAvailable(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->isMultiStreamAvailable() ? 1 : 0;
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->isMultiStreamAvailable() ? 1 : 0;
 
     return 0;
 }
 
 void zrtp_acceptEnrollment(ZrtpContext* zrtpContext, int32_t accepted) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->acceptEnrollment(accepted == 0 ? false : true);
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->acceptEnrollment(accepted == 0 ? false : true);
 }
 
 int32_t zrtp_isEnrollmentMode(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->isEnrollmentMode() ? 1 : 0;
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->isEnrollmentMode() ? 1 : 0;
 
     return 0;
 }
 
 void zrtp_setEnrollmentMode(ZrtpContext* zrtpContext, int32_t enrollmentMode) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->setEnrollmentMode(enrollmentMode == 0 ? false : true);
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->setEnrollmentMode(enrollmentMode == 0 ? false : true);
 }
 
 int32_t isPeerEnrolled(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->isPeerEnrolled() ? 1 : 0;
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->isPeerEnrolled() ? 1 : 0;
 
     return 0;
 }
 
 int32_t zrtp_sendSASRelayPacket(ZrtpContext* zrtpContext, uint8_t* sh, char* render) {
-    if (zrtpContext && zrtpContext->zrtpEngine) {
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine) {
         std::string rn(render);
-        return zrtpContext->zrtpEngine->sendSASRelayPacket(sh, rn) ? 1 : 0;
+        return engine->sendSASRelayPacket(sh, rn) ? 1 : 0;
     }
     return 0;
 }
 
 
 const char* zrtp_getSasType(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine) {
-        std::string rn = zrtpContext->zrtpEngine->getSasType();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine) {
+        std::string rn = engine->getSasType();
         if (rn.size() == 0)
             return NULL;
 
@@ -287,55 +343,70 @@ const char* zrtp_getSasType(ZrtpContext* zrtpContext) {
 
 
 uint8_t* zrtp_getSasHash(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->getSasHash();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->getSasHash();
 
     return NULL;
 }
 
 int32_t zrtp_setSignatureData(ZrtpContext* zrtpContext, uint8_t* data, int32_t length) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->setSignatureData(data, length) ? 1 : 0;
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->setSignatureData(data, length) ? 1 : 0;
 
     return 0;
 }
 
 const uint8_t* zrtp_getSignatureData(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->getSignatureData();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->getSignatureData();
 
     return 0;
 }
 
 int32_t zrtp_getSignatureLength(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->getSignatureLength();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->getSignatureLength();
 
     return 0;
 }
 
 void zrtp_conf2AckSecure(ZrtpContext* zrtpContext) {
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        zrtpContext->zrtpEngine->conf2AckSecure();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        engine->conf2AckSecure();
 }
 
 int32_t zrtp_getPeerZid(ZrtpContext* zrtpContext, uint8_t* data) {
     if (data == NULL)
         return 0;
 
-    if (zrtpContext && zrtpContext->zrtpEngine)
-        return zrtpContext->zrtpEngine->getPeerZid(data);
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->getPeerZid(data);
 
     return 0;
 }
 
 int32_t zrtp_getNumberSupportedVersions(ZrtpContext* zrtpContext) {
-    return zrtpContext->zrtpEngine->getNumberSupportedVersions();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->getNumberSupportedVersions();
+
+    return 0;
 }
 
 int32_t zrtp_getCurrentProtocolVersion(ZrtpContext* zrtpContext) {
-    return zrtpContext->zrtpEngine->getCurrentProtocolVersion();
+    ZRtp* engine = getEngine(zrtpContext);
+    if (engine)
+        return engine->getCurrentProtocolVersion();
+
+    return 0;
 }
+
 /*
  * The following methods wrap the ZRTP Configure functions
  */
@@ -409,73 +480,124 @@ void zrtp_freeAlgorithmNames(char** names)
 
 void zrtp_setStandardConfig(ZrtpContext* zrtpContext)
 {
-    zrtpContext->configure->setStandardConfig();
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+        configure->setStandardConfig();
 }
 
 void zrtp_setMandatoryOnly(ZrtpContext* zrtpContext)
 {
-    zrtpContext->configure->setMandatoryOnly();
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+        configure->setMandatoryOnly();
 }
 
 int32_t zrtp_addAlgo(ZrtpContext* zrtpContext, zrtp_AlgoTypes algoType, const char* algo)
 {
     EnumBase* base = getEnumBase(algoType);
-    AlgorithmEnum& a = base->getByName(algo);
+    if (base) {
+        AlgorithmEnum& a = base->getByName(algo);
+        ZrtpConfigure* configure = getConfig(zrtpContext);
+        if (configure)
+            return configure->addAlgo((AlgoTypes)algoType, a);
+    }
 
-    return zrtpContext->configure->addAlgo((AlgoTypes)algoType, a);
+    //TODO: @wernerd Is this an appropriate return value in case of error?
+    return 0;
 }
 
 int32_t zrtp_addAlgoAt(ZrtpContext* zrtpContext, zrtp_AlgoTypes algoType, const char* algo, int32_t index)
 {
     EnumBase* base = getEnumBase(algoType);
-    AlgorithmEnum& a = base->getByName(algo);
+    if (base) {
+        AlgorithmEnum& a = base->getByName(algo);
+        ZrtpConfigure* configure = getConfig(zrtpContext);
+        if (configure)
+            return configure->addAlgoAt((AlgoTypes)algoType, a, index);
+    }
 
-    return zrtpContext->configure->addAlgoAt((AlgoTypes)algoType, a, index);
+    //TODO: @wernerd Is this an appropriate return value in case of error?
+    return 0;
 }
 
 int32_t zrtp_removeAlgo(ZrtpContext* zrtpContext, zrtp_AlgoTypes algoType, const char* algo)
 {
     EnumBase* base = getEnumBase(algoType);
-    AlgorithmEnum& a = base->getByName(algo);
+    if (base) {
+        AlgorithmEnum& a = base->getByName(algo);
+        ZrtpConfigure* configure = getConfig(zrtpContext);
+        if (configure)
+            return configure->removeAlgo((AlgoTypes)algoType, a);
+    }
 
-    return zrtpContext->configure->removeAlgo((AlgoTypes)algoType, a);
+    //TODO: @wernerd Is this an appropriate return value in case of error?
+    return 0;
 }
 
 int32_t zrtp_getNumConfiguredAlgos(ZrtpContext* zrtpContext, zrtp_AlgoTypes algoType)
 {
-    return zrtpContext->configure->getNumConfiguredAlgos((AlgoTypes)algoType);
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+        return configure->getNumConfiguredAlgos((AlgoTypes)algoType);
+
+    return 0;
 }
 
 const char* zrtp_getAlgoAt(ZrtpContext* zrtpContext, Zrtp_AlgoTypes algoType, int32_t index)
 {
-       AlgorithmEnum& a = zrtpContext->configure->getAlgoAt((AlgoTypes)algoType, index);
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure) {
+       AlgorithmEnum& a = configure->getAlgoAt((AlgoTypes)algoType, index);
        return a.getName();
+    } else {
+      //TODO: @wernerd Is this an appropriate return value in case of error?
+      return NULL;
+    }
 }
 
 int32_t zrtp_containsAlgo(ZrtpContext* zrtpContext, Zrtp_AlgoTypes algoType, const char*  algo)
 {
     EnumBase* base = getEnumBase(algoType);
-    AlgorithmEnum& a = base->getByName(algo);
+    if (base) {
+        AlgorithmEnum& a = base->getByName(algo);
+        ZrtpConfigure* configure = getConfig(zrtpContext);
+        if (configure)
+            return configure->containsAlgo((AlgoTypes)algoType, a) ? 1 : 0;
+    }
 
-    return zrtpContext->configure->containsAlgo((AlgoTypes)algoType, a) ? 1 : 0;
+    return 0;
 }
 
 void zrtp_setTrustedMitM(ZrtpContext* zrtpContext, int32_t yesNo)
 {
-    zrtpContext->configure->setTrustedMitM(yesNo ? true : false);
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+        configure->setTrustedMitM(yesNo ? true : false);
 }
 
 int32_t zrtp_isTrustedMitM(ZrtpContext* zrtpContext)
 {
-    return zrtpContext->configure->isTrustedMitM() ? 1 : 0;
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+        return configure->isTrustedMitM() ? 1 : 0;
+
+    //TODO: @wernerd Is this an appropriate return value in case of error?
+    return 0;
 }
 
 void zrtp_setSasSignature(ZrtpContext* zrtpContext, int32_t yesNo)
 {
-    zrtpContext->configure->setSasSignature(yesNo ? true : false);
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+        configure->setSasSignature(yesNo ? true : false);
 }
 
 int32_t zrtp_isSasSignature(ZrtpContext* zrtpContext)
 {
-    return zrtpContext->configure->isSasSignature() ? 1 : 0;
+    ZrtpConfigure* configure = getConfig(zrtpContext);
+    if (configure)
+         configure->isSasSignature() ? 1 : 0;
+
+    //TODO: @wernerd Is this an appropriate return value in case of error?
+    return 0;
 }

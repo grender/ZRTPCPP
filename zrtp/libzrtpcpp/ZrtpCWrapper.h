@@ -259,16 +259,12 @@ extern "C"
 {
 #endif
 
-    typedef class ZRtp ZRtp;
-    typedef class ZrtpCallbackWrapper ZrtpCallbackWrapper;
-    typedef class ZrtpConfigure ZrtpConfigure;
-
 
     typedef struct zrtpContext
     {
-        ZRtp* zrtpEngine;                   /*!< Holds the real ZRTP engine */
-        ZrtpCallbackWrapper* zrtpCallback;  /*!< Help class Callback wrapper */
-        ZrtpConfigure* configure;           /*!< Optional configuration data */
+        void* zrtpEngine;                   /*!< Holds the real ZRTP engine */
+        void* zrtpCallback;                 /*!< Help class Callback wrapper */
+        void* configure;                    /*!< Optional configuration data */
         void* userData;                     /*!< User data, set by application */
     } ZrtpContext;
 

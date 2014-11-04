@@ -106,12 +106,12 @@ enum EnableSecurity {
  */
 
 class __EXPORT ZrtpCallback {
-
-protected:
     friend class ZRtp;
 
+public:
     virtual ~ZrtpCallback() {};
 
+protected:
     /**
      * Send a ZRTP packet via RTP.
      *
